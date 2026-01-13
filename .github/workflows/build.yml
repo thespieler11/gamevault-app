@@ -1,0 +1,63 @@
+name: Build Modified GameVault App
+
+on:
+  workflow_dispatch:  # Allows manual trigger
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '7.0.x'
+        
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+      
+    - name: Modify PhalcodeProduct.cs (Bypass subscription)
+      shell: pwsh
+      run: |
+        $file = "gamevault/Models/PhalcodeProduct.cs"
+        $content = Get-Content $file -Raw
+        $content = $content -replace 'return \(CurrentPeriodEnd != null && CurrentPeriodEnd > DateTime\.UtcNow\);', 'return true; // Modified for personal use'
+        Set-Content $file $content
+        Write-Host "✓ Modified PhalcodeProduct.cs - subscription bypass enabled"
+        
+    - name: Restore NuGet packages
+      run: nuget restore gamevault.sln
+      
+    - name: Build solution
+      run: msbuild gamevault.sln /p:Configuration=Release /p:Platform="Any CPU" /restore
+      
+    - name: Create build info
+      shell: pwsh
+      run: |
+        $buildInfo = @"
+        GameVault Modified Build
+        ========================
+        Build Date: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+        Modification: Subscription bypass enabled
+        Original Repository: https://github.com/Phalcode/gamevault-app
+        
+        IMPORTANT:
+        - This is a modified build for personal use only
+        - Do not distribute this build
+        - Consider supporting the developers at https://gamevau.lt/gamevault-plus
+        "@
+        Set-Content -Path "BUILD_INFO.txt" -Value $buildInfo
+        
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: GameVault-Modified-Build
+        path: |
+          gamevault/bin/Release/
+          BUILD_INFO.txt
+        retention-days: 30
